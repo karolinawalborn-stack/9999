@@ -1,0 +1,48 @@
+name: Build unsigned TrollStore IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Archive unsigned app
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project QuarkLinkConverter.xcodeproj \
+            -scheme QuarkLinkConverter \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$PWD/build/QuarkLinkConverter.xcarchive" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM=""
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          APP=$(find build/QuarkLinkConverter.xcarchive/Products/Applications -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$APP"
+          rm -rf build/Payload
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          cd build
+          ditto -c -k --sequesterRsrc --keepParent Payload QuarkLinkConverter-unsigned.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuarkLinkConverter-unsigned-ipa
+          path: build/QuarkLinkConverter-unsigned.ipa
+          if-no-files-found: error
